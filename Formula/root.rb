@@ -44,6 +44,10 @@ class Root < Formula
   depends_on "tbb"
   depends_on "xrootd"
   depends_on "xz" # for LZMA
+  uses_from_macos "linuxbrew/xorg/libx11"
+  uses_from_macos "linuxbrew/xorg/libxext"
+  uses_from_macos "linuxbrew/xorg/libxft"
+  uses_from_macos "linuxbrew/xorg/libxpm"
 
   skip_clean "bin"
 
@@ -64,11 +68,9 @@ class Root < Formula
     py_inc = Utils.popen_read("python3 -c 'from distutils import sysconfig;print(sysconfig.get_python_inc(True))'").chomp
 
     args = std_cmake_args + %W[
-      -DCLING_CXX_PATH=clang++
       -DCMAKE_INSTALL_ELISPDIR=#{elisp}
       -DPYTHON_EXECUTABLE=#{py_exe}
       -DPYTHON_INCLUDE_DIR=#{py_inc}
-      -DPYTHON_LIBRARY=#{py_prefix}/Python
       -Dbuiltin_cfitsio=OFF
       -Dbuiltin_freetype=ON
       -Ddavix=ON
@@ -89,6 +91,18 @@ class Root < Formula
       -Dxrootd=ON
     ]
 
+    if OS.mac?
+      args += %W[
+        -DCLING_CXX_PATH=clang++
+        -DPYTHON_LIBRARY=#{py_prefix}/Python
+      ]
+    else
+      py_lib = Utils.popen_read(%q!python3 -c 'from distutils import sysconfig;print(sysconfig.get_config_var("LDLIBRARY"))'!).chomp
+      args += %W[
+        -DPYTHON_LIBRARY=#{py_prefix}/lib/#{py_lib}
+      ]
+    end
+
     cxx_version = (MacOS.version < :mojave) ? 14 : 17
     args << "-DCMAKE_CXX_STANDARD=#{cxx_version}"
 
@@ -98,7 +112,7 @@ class Root < Formula
       # Work around superenv stripping out isysroot leading to errors with
       # libsystem_symptoms.dylib (only available on >= 10.12) and
       # libsystem_darwin.dylib (only available on >= 10.13)
-      if MacOS.version < :high_sierra
+      if OS.mac? && MacOS.version < :high_sierra
         system "xcrun", "make", "install"
       else
         system "make", "install"
@@ -135,6 +149,7 @@ class Root < Formula
     EOS
 
     # Test ROOT command line mode
+    ENV.prepend_path "LD_LIBRARY_PATH", lib/"root" unless OS.mac?
     system "#{bin}/root", "-b", "-l", "-q", "-e", "gSystem->LoadAllLibraries(); 0"
 
     # Test ROOT executable
