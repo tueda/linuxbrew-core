@@ -93,6 +93,17 @@ class PreCommit < Formula
       rm f
       ln_s realpath, f
     end
+
+    unless OS.mac?
+      bin_python_path = Pathname(libexec/"bin")
+      bin_python_path.each_child do |f|
+        next unless f.symlink?
+
+        realpath = f.realpath
+        rm f
+        ln_s realpath, f
+      end
+    end
   end
 
   test do
